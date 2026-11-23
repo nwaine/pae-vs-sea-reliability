@@ -10,6 +10,252 @@ from metrics import load_data, summarize
 
 DASHBOARD_DIR = Path("dashboard")
 
+STYLES = """
+    :root {
+      --pae: __PAE__;
+      --sea: __SEA__;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 56px; }
+    header { margin-bottom: 22px; }
+    h1 { margin: 0 0 6px; font-size: 1.75rem; letter-spacing: -0.02em; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 0.98rem; }
+
+    .live-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 20px 0 22px;
+    }
+    .live-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .live-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+      display: inline-block;
+    }
+    .live-meta { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
+    .refresh-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .refresh-btn:hover { background: #eef2f6; }
+    .live-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .live-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .live-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .airport-code { font-weight: 700; font-size: 0.98rem; }
+    .airport-name { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 6px; }
+    .cat-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+    }
+    .cat-vfr { background: #dcfce7; color: #166534; }
+    .cat-mvfr { background: #dbeafe; color: #1d4ed8; }
+    .cat-ifr { background: #fee2e2; color: #b91c1c; }
+    .cat-lifr { background: #f3e8ff; color: #7e22ce; }
+    .cat-unk { background: #e2e8f0; color: #475569; }
+    .wx-line { font-size: 0.88rem; margin: 4px 0; }
+    .faa-line { font-size: 0.82rem; color: var(--muted); margin: 4px 0; }
+    .faa-alert { color: #b45309; font-weight: 600; }
+    .traffic-box {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .flights-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .flight-chip {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 6px;
+      color: var(--text);
+    }
+    .live-note { font-size: 0.85rem; color: var(--muted); margin: 0; }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin: 22px 0;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .kpi.pae { border-top-color: var(--pae); }
+    .kpi.sea { border-top-color: var(--sea); }
+    .kpi-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .kpi-value { font-size: 1.85rem; font-weight: 700; margin: 4px 0; }
+    .kpi-note { font-size: 0.82rem; color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 20px 14px;
+      margin-bottom: 20px;
+    }
+    .caption { margin: 8px 4px 0; font-size: 0.85rem; color: var(--muted); }
+    footer {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+    footer p { margin: 6px 0; }
+"""
+
+LIVE_SCRIPT = """
+<script>
+  const AIRPORTS = [
+    { code: "PAE", name: "Paine Field" },
+    { code: "SEA", name: "Sea-Tac" },
+    { code: "SFO", name: "San Francisco" },
+  ];
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function catClass(cat) {
+    const map = { VFR: "cat-vfr", MVFR: "cat-mvfr", IFR: "cat-ifr", LIFR: "cat-lifr" };
+    return map[cat] || "cat-unk";
+  }
+
+  function renderTraffic(code, traffic) {
+    if (code === "SFO") {
+      return '<div class="traffic-box">Tracked here because SFO airspace holds drive PAE delays.</div>';
+    }
+    if (!traffic) return "";
+    const chips = (traffic.sample || [])
+      .map((a) => `<span class="flight-chip">${esc(a.callsign)} · ${esc(a.type)} · ${Number(a.alt).toLocaleString()} ft</span>`)
+      .join("");
+    return `
+      <div class="traffic-box">
+        <div><strong>${traffic.airborne}</strong> airborne (${traffic.total} within 15 nm)</div>
+        ${chips ? `<div class="flights-list">${chips}</div>` : ""}
+      </div>
+    `;
+  }
+
+  async function loadLive() {
+    const grid = document.getElementById("live-grid");
+    const updated = document.getElementById("live-updated");
+
+    if (window.location.protocol === "file:") {
+      grid.innerHTML = '<p class="live-note">Live NOAA weather, FAA delay status, and nearby aircraft activate automatically once deployed on Netlify.</p>';
+      updated.textContent = "Local preview";
+      return;
+    }
+
+    updated.textContent = "Refreshing...";
+    try {
+      const res = await fetch("/.netlify/functions/live");
+      if (!res.ok) throw new Error("Feed error " + res.status);
+      const data = await res.json();
+
+      grid.innerHTML = AIRPORTS.map(({ code, name }) => {
+        const wx = data.weather?.[code];
+        const faa = data.faa?.[code] || "No FAA delays reported";
+        const faaCls = faa === "No FAA delays reported" ? "faa-line" : "faa-line faa-alert";
+        const cat = wx?.fltCat || "—";
+        const temp = wx?.tempF != null ? `${wx.tempF}°F` : "—";
+        const wxText = wx
+          ? `${temp} · Wind ${esc(wx.wind)} · Vis ${esc(wx.visib)}`
+          : "Weather unavailable";
+
+        return `
+          <div class="live-card">
+            <div class="live-card-top">
+              <div><span class="airport-code">${code}</span><span class="airport-name">${name}</span></div>
+              <span class="cat-pill ${catClass(cat)}">${esc(cat)}</span>
+            </div>
+            <div class="wx-line" title="${esc(wx?.rawOb || "")}">${wxText}</div>
+            <div class="${faaCls}">FAA: ${esc(faa)}</div>
+            ${renderTraffic(code, data.traffic?.[code])}
+          </div>
+        `;
+      }).join("");
+
+      const t = new Date(data.updatedAt);
+      updated.textContent = "Updated " + t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch (err) {
+      grid.innerHTML = '<p class="live-note">Live conditions temporarily unavailable. Historical reliability charts below are unaffected.</p>';
+      updated.textContent = "Offline";
+    }
+  }
+
+  document.getElementById("live-refresh").addEventListener("click", loadLive);
+  loadLive();
+</script>
+"""
+
 
 def chart_div(fig, include_js=False):
     fig.update_layout(
@@ -49,69 +295,15 @@ def build():
     c2 = chart_div(sfo_delay_causes_chart(df))
     c3 = chart_div(monthly_trend_chart(df))
 
+    css = STYLES.replace("__PAE__", PAE_COLOR).replace("__SEA__", SEA_COLOR)
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Paine Field (PAE) vs. Sea-Tac (SEA) Flight Reliability</title>
-  <style>
-    :root {{
-      --pae: {PAE_COLOR};
-      --sea: {SEA_COLOR};
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --muted: #475569;
-      --border: #e2e8f0;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-    }}
-    .wrap {{ max-width: 1080px; margin: 0 auto; padding: 32px 20px 56px; }}
-    header {{ margin-bottom: 24px; }}
-    h1 {{ margin: 0 0 6px; font-size: 1.75rem; letter-spacing: -0.02em; }}
-    .subtitle {{ margin: 0; color: var(--muted); font-size: 0.98rem; }}
-    .kpis {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 14px;
-      margin: 24px 0;
-    }}
-    .kpi {{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-top: 4px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 18px;
-    }}
-    .kpi.pae {{ border-top-color: var(--pae); }}
-    .kpi.sea {{ border-top-color: var(--sea); }}
-    .kpi-label {{ font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }}
-    .kpi-value {{ font-size: 1.85rem; font-weight: 700; margin: 4px 0; }}
-    .kpi-note {{ font-size: 0.82rem; color: var(--muted); }}
-    .card {{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 20px 14px;
-      margin-bottom: 20px;
-    }}
-    .caption {{ margin: 8px 4px 0; font-size: 0.85rem; color: var(--muted); }}
-    footer {{
-      margin-top: 28px;
-      padding-top: 18px;
-      border-top: 1px solid var(--border);
-      font-size: 0.84rem;
-      color: var(--muted);
-    }}
-    footer p {{ margin: 6px 0; }}
-  </style>
+  <style>{css}</style>
 </head>
 <body>
   <div class="wrap">
@@ -122,6 +314,19 @@ def build():
         ({date_start} – {date_end} · {len(df):,} scheduled flights).
       </p>
     </header>
+
+    <section class="live-section">
+      <div class="live-header">
+        <div class="live-title"><span class="dot"></span>Live Airport Conditions</div>
+        <div class="live-meta">
+          <span id="live-updated">Loading...</span>
+          <button id="live-refresh" class="refresh-btn" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="live-grid" class="live-grid">
+        <p class="live-note">Loading live weather, FAA status, and nearby aircraft...</p>
+      </div>
+    </section>
 
     <section class="kpis">
       <div class="kpi pae">
@@ -171,10 +376,11 @@ def build():
     </section>
 
     <footer>
-      <p><strong>Data source:</strong> U.S. DOT Bureau of Transportation Statistics (BTS) Marketing Carrier On-Time Performance, {date_start} – {date_end} (data lags ~2 months).</p>
-      <p><strong>Definitions:</strong> A flight is on time if it arrives less than 15 minutes late. Destinations reflect active PAE commercial routes (LAS, LAX, PDX, PHX, PSP seasonal, SAN, SFO, SNA).</p>
+      <p><strong>Historical data:</strong> U.S. DOT Bureau of Transportation Statistics (BTS) Marketing Carrier On-Time Performance, {date_start} – {date_end} (data lags ~2 months). A flight is on time if it arrives less than 15 minutes late.</p>
+      <p><strong>Live data:</strong> NOAA Aviation Weather (METAR), FAA NAS Status (if PAE is unlisted, no event is reported), and nearby aircraft positions via adsb.lol (ODbL).</p>
     </footer>
   </div>
+  {LIVE_SCRIPT}
 </body>
 </html>
 """
