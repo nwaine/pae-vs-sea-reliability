@@ -29,10 +29,17 @@ def load_month(zip_path):
     print(f"{zip_path.name}: {before:,} rows -> {len(df):,}")
     return df
 
+
 def clean_all():
+    zips = sorted(RAW_DIR.glob("*.zip"))
+    if not zips:
+        print("No raw ZIPs to process — keeping existing parquet.")
+        return
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    frames = [load_month(p) for p in sorted(RAW_DIR.glob("*.zip"))]
+    frames = [load_month(p) for p in zips]
     df = pd.concat(frames, ignore_index=True)
+    df.columns = df.columns.str.strip()
 
     df["FlightDate"] = pd.to_datetime(df["FlightDate"])
     is_outbound = df["Origin"].isin(HUBS)

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from charts import (
     PAE_COLOR,
@@ -348,8 +349,32 @@ def build():
         * 100
     )
 
+    routes = summarize(df, ["Partner", "Hub"]).unstack("Hub")["on_time_pct"]
+    pae_wins = (
+        routes[routes["PAE"] > routes["SEA"]]
+        .sort_values("PAE", ascending=False)
+        .index.tolist()
+    )
+    sfo_share = (
+        ((df["Hub"] == "PAE") & (df["Partner"] == "SFO")).sum()
+        / (df["Hub"] == "PAE").sum()
+        * 100
+    )
+
+    monthly = df.copy()
+    monthly["Month"] = monthly["FlightDate"].dt.to_period("M").astype(str)
+    m_pae_no_sfo = summarize(
+        monthly[(monthly["Hub"] == "PAE") & (monthly["Partner"] != "SFO")], ["Month"]
+    )["on_time_pct"]
+    m_pae_all = summarize(monthly[monthly["Hub"] == "PAE"], ["Month"])["on_time_pct"]
+    m_sea = summarize(monthly[monthly["Hub"] == "SEA"], ["Month"])["on_time_pct"]
+    months_won = int((m_pae_no_sfo > m_sea).sum())
+    total_months = len(m_pae_no_sfo)
+    max_sfo_drag = (m_pae_no_sfo - m_pae_all).max()
+
     date_start = df["FlightDate"].min().strftime("%b %Y")
     date_end = df["FlightDate"].max().strftime("%b %Y")
+    built_date = datetime.now(timezone.utc).strftime("%b %d, %Y")
 
     c1 = chart_div(route_on_time_chart(df), include_js=True)
     c2 = chart_div(sfo_delay_causes_chart(df))
@@ -370,7 +395,7 @@ def build():
     <header>
       <h1>Paine Field (PAE) vs. Sea-Tac (SEA) Reliability</h1>
       <p class="subtitle">
-        Comparing on-time arrivals, cancellations, and delay causes across the 8 shared West Coast destinations
+        Comparing on-time arrivals, cancellations, and delay causes across the {len(routes)} shared West Coast destinations
         ({date_start} – {date_end} · {len(df):,} scheduled flights).
       </p>
     </header>
@@ -394,7 +419,7 @@ def build():
 
     <section class="kpis">
       <div class="kpi pae">
-        <div class="kpi-label">PAE On-Time (All 8 Routes)</div>
+        <div class="kpi-label">PAE On-Time (All {len(routes)} Routes)</div>
         <div class="kpi-value">{pae['on_time_pct']:.1f}%</div>
         <div class="kpi-note">{int(pae['flights']):,} flights · {pae['cancel_pct']:.2f}% cancelled</div>
       </div>
@@ -404,7 +429,7 @@ def build():
         <div class="kpi-note">{int(pae_no_sfo['flights']):,} flights · {pae_no_sfo['cancel_pct']:.2f}% cancelled</div>
       </div>
       <div class="kpi sea">
-        <div class="kpi-label">SEA On-Time (Same 8 Routes)</div>
+        <div class="kpi-label">SEA On-Time (Same {len(routes)} Routes)</div>
         <div class="kpi-value">{sea['on_time_pct']:.1f}%</div>
         <div class="kpi-note">{int(sea['flights']):,} flights · {sea['cancel_pct']:.2f}% cancelled</div>
       </div>
@@ -418,7 +443,7 @@ def build():
     <section class="card">
       {c1}
       <p class="caption">
-        PAE beats SEA on 4 of 8 routes (PHX, PDX, LAX, LAS), but SFO makes up nearly 1 in 5 PAE flights and drags PAE's headline rate below SEA.
+        PAE beats SEA on {len(pae_wins)} of {len(routes)} routes ({", ".join(pae_wins)}), while SFO makes up {sfo_share:.1f}% of PAE's schedule and drags PAE's headline rate below SEA.
       </p>
     </section>
 
@@ -434,13 +459,13 @@ def build():
     <section class="card">
       {c3}
       <p class="caption">
-        Excluding SFO, Paine Field beat Sea-Tac in 11 of 12 months. During SFO's spring and summer marine-layer season (Apr–Aug),
-        that single route pulls Paine Field's overall on-time rate down by up to ~13 percentage points.
+        Excluding SFO, Paine Field beat Sea-Tac in {months_won} of {total_months} months. At its peak, the SFO route alone
+        pulls Paine Field's monthly on-time rate down by {max_sfo_drag:.1f} percentage points.
       </p>
     </section>
 
     <footer>
-      <p><strong>Historical data:</strong> U.S. DOT Bureau of Transportation Statistics (BTS) Marketing Carrier On-Time Performance, {date_start} – {date_end} (data lags ~2 months). A flight is on time if it arrives less than 15 minutes late.</p>
+      <p><strong>Historical data:</strong> U.S. DOT Bureau of Transportation Statistics (BTS) Marketing Carrier On-Time Performance, {date_start} – {date_end} (auto-checked weekly; DOT publishes on a ~2-month lag; built {built_date}). A flight is on time if it arrives less than 15 minutes late.</p>
       <p><strong>Live data:</strong> NOAA Aviation Weather (METAR), FAA NAS Status (if PAE is unlisted, no event is reported), and nearby aircraft positions via adsb.lol (ODbL).</p>
     </footer>
   </div>

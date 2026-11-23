@@ -1,0 +1,41 @@
+name: Refresh BTS data
+
+on:
+  schedule:
+    - cron: "0 16 * * 5" # Every Friday at 8 AM PT (16:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check for new BTS month and rebuild
+        run: |
+          python src/fetch_bts.py
+          python src/clean.py
+          python src/build_dashboard.py
+
+      - name: Commit updated data and dashboard if changed
+        run: |
+          if git diff --quiet data/processed/pae_sea_flights.parquet dashboard/index.html; then
+            echo "No new BTS data — skipping commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/processed/pae_sea_flights.parquet dashboard/index.html
+          git commit -m "Auto-refresh rolling 12-month BTS data"
+          git push

@@ -11,7 +11,6 @@ SEA_COLOR = "#ea580c"  # warm orange
 def route_on_time_chart(df):
     routes = summarize(df, ["Partner", "Hub"]).reset_index()
 
-    # Sort destinations by PAE on-time rate
     pae_order = (
         routes[routes["Hub"] == "PAE"]
         .sort_values("on_time_pct", ascending=True)["Partner"]
@@ -111,6 +110,8 @@ def sfo_delay_causes_chart(df):
 def monthly_trend_chart(df):
     monthly = df.copy()
     monthly["Month"] = monthly["FlightDate"].dt.to_period("M").astype(str)
+    date_start = df["FlightDate"].min().strftime("%b %Y")
+    date_end = df["FlightDate"].max().strftime("%b %Y")
 
     all_routes = summarize(monthly, ["Month", "Hub"]).reset_index()
     all_routes["Series"] = all_routes["Hub"].map(
@@ -157,7 +158,7 @@ def monthly_trend_chart(df):
             "on_time_pct": "On-Time Arrival Rate (%)",
             "Series": "",
         },
-        title="Monthly On-Time Rate (Oct 2025 – Sep 2026): The SFO Effect Over Time",
+        title=f"Monthly On-Time Rate ({date_start} – {date_end}): The SFO Effect Over Time",
     )
     fig.update_traces(line=dict(width=2.5), marker=dict(size=7))
     fig.update_layout(
