@@ -163,6 +163,10 @@ STYLES = """
       padding: 2px 6px;
       color: var(--text);
     }
+    .flight-route {
+      font-weight: 700;
+      color: var(--pae);
+    }
     .live-note { font-size: 0.85rem; color: var(--muted); margin: 0; }
 
     .kpis {
@@ -239,7 +243,10 @@ LIVE_SCRIPT = """
     }
 
     const chips = (bucket.sample || [])
-      .map((a) => `<span class="flight-chip">${esc(a.callsign)} · ${esc(a.type)} · ${Number(a.alt).toLocaleString()} ft</span>`)
+      .map((a) => {
+        const route = a.route ? ` · <span class="flight-route">${esc(a.route)}</span>` : "";
+        return `<span class="flight-chip">${esc(a.callsign)}${route} · ${esc(a.type)} · ${Number(a.alt).toLocaleString()} ft</span>`;
+      })
       .join("");
     return `
       <div class="traffic-box">
@@ -466,7 +473,7 @@ def build():
 
     <footer>
       <p><strong>Historical data:</strong> U.S. DOT Bureau of Transportation Statistics (BTS) Marketing Carrier On-Time Performance, {date_start} – {date_end} (auto-checked weekly; DOT publishes on a ~2-month lag; built {built_date}). A flight is on time if it arrives less than 15 minutes late.</p>
-      <p><strong>Live data:</strong> NOAA Aviation Weather (METAR), FAA NAS Status (if PAE is unlisted, no event is reported), and nearby aircraft positions via adsb.lol (ODbL).</p>
+      <p><strong>Live data:</strong> NOAA Aviation Weather (METAR), FAA NAS Status (if PAE is unlisted, no event is reported), nearby aircraft positions via adsb.lol (ODbL), and commercial routes via adsbdb.com.</p>
     </footer>
   </div>
   {LIVE_SCRIPT}

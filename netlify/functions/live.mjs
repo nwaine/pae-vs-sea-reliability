@@ -4,10 +4,10 @@ const HEADERS = {
 
 const COMMERCIAL_CATS = new Set(["A3", "A4", "A5"]);
 
-async function fetchJson(url) {
+async function fetchJson(url, timeoutMs = 8000) {
   const res = await fetch(url, {
     headers: HEADERS,
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`${res.status} for ${url}`);
   return res.json();
@@ -35,6 +35,7 @@ function buildBucket(list) {
       callsign: a.flight.trim(),
       type: a.t || "—",
       alt: a.alt_baro,
+      commercial: isCommercial(a),
     }));
   return { total: list.length, airborne: airborne.length, sample };
 }
@@ -45,6 +46,48 @@ function summarizeTraffic(data) {
     all: buildBucket(ac),
     commercial: buildBucket(ac.filter(isCommercial)),
   };
+}
+
+function nearPugetSound(ap) {
+  if (!ap || typeof ap.latitude !== "number" || typeof ap.longitude !== "number") return false;
+  return Math.abs(ap.latitude - 47.65) < 1.5 && Math.abs(ap.longitude - -122.3) < 2.0;
+}
+
+async function lookupRoutes(traffic) {
+  const callsigns = new Set();
+  for (const hub of Object.values(traffic)) {
+    if (!hub) continue;
+    for (const bucket of [hub.all, hub.commercial]) {
+      for (const plane of bucket?.sample ?? []) {
+        if (plane.commercial) callsigns.add(plane.callsign);
+      }
+    }
+  }
+
+  const routes = {};
+  await Promise.allSettled(
+    [...callsigns].map(async (cs) => {
+      try {
+        const data = await fetchJson(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`, 2500);
+        const fr = data?.response?.flightroute;
+        if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return;
+        if (!nearPugetSound(fr.origin) && !nearPugetSound(fr.destination)) return;
+        routes[cs] = `${fr.origin.iata_code}→${fr.destination.iata_code}`;
+      } catch {
+        // Skip unknown or slow route lookups cleanly
+      }
+    })
+  );
+
+  for (const hub of Object.values(traffic)) {
+    if (!hub) continue;
+    for (const bucket of [hub.all, hub.commercial]) {
+      for (const plane of bucket?.sample ?? []) {
+        if (routes[plane.callsign]) plane.route = routes[plane.callsign];
+        delete plane.commercial;
+      }
+    }
+  }
 }
 
 function summarizeFaa(events, code) {
@@ -91,6 +134,8 @@ export default async () => {
     PAE: paeRes.status === "fulfilled" ? summarizeTraffic(paeRes.value) : null,
     SEA: seaRes.status === "fulfilled" ? summarizeTraffic(seaRes.value) : null,
   };
+
+  await lookupRoutes(traffic);
 
   return new Response(
     JSON.stringify({ updatedAt: new Date().toISOString(), weather, faa, traffic }),
