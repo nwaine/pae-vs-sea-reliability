@@ -26,12 +26,15 @@ jobs:
         run: |
           python src/fetch_bts.py
           python src/clean.py
+          if git diff --quiet data/processed/pae_sea_flights.parquet; then
+            echo "No new BTS data — skipping rebuild and commit."
+            exit 0
+          fi
           python src/build_dashboard.py
 
       - name: Commit updated data and dashboard if changed
         run: |
-          if git diff --quiet data/processed/pae_sea_flights.parquet dashboard/index.html; then
-            echo "No new BTS data — skipping commit."
+          if git diff --quiet data/processed/pae_sea_flights.parquet; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
