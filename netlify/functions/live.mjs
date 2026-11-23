@@ -2,6 +2,8 @@ const HEADERS = {
   "User-Agent": "pae-vs-sea-reliability (portfolio project by Nick Waine)",
 };
 
+const COMMERCIAL_CATS = new Set(["A3", "A4", "A5"]);
+
 async function fetchJson(url) {
   const res = await fetch(url, {
     headers: HEADERS,
@@ -18,9 +20,13 @@ function formatWind(m) {
   return `${dir} @ ${m.wspd}${gust} kt`;
 }
 
-function summarizeTraffic(data) {
-  const ac = data?.ac ?? [];
-  const airborne = ac.filter((a) => typeof a.alt_baro === "number");
+function isCommercial(a) {
+  const flight = (a.flight || "").trim();
+  return /^[A-Z]{3}\d/.test(flight) && COMMERCIAL_CATS.has(a.category);
+}
+
+function buildBucket(list) {
+  const airborne = list.filter((a) => typeof a.alt_baro === "number");
   const sample = airborne
     .filter((a) => a.flight && a.flight.trim())
     .sort((a, b) => a.alt_baro - b.alt_baro)
@@ -30,7 +36,15 @@ function summarizeTraffic(data) {
       type: a.t || "—",
       alt: a.alt_baro,
     }));
-  return { total: ac.length, airborne: airborne.length, sample };
+  return { total: list.length, airborne: airborne.length, sample };
+}
+
+function summarizeTraffic(data) {
+  const ac = data?.ac ?? [];
+  return {
+    all: buildBucket(ac),
+    commercial: buildBucket(ac.filter(isCommercial)),
+  };
 }
 
 function summarizeFaa(events, code) {

@@ -64,7 +64,38 @@ STYLES = """
       background: #16a34a;
       display: inline-block;
     }
-    .live-meta { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
+    .live-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .seg {
+      display: inline-flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .seg-btn {
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 0.76rem;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .seg-btn.active {
+      background: var(--card);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
     .refresh-btn {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -177,6 +208,9 @@ LIVE_SCRIPT = """
     { code: "SFO", name: "San Francisco" },
   ];
 
+  let trafficFilter = "all";
+  let lastLiveData = null;
+
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -193,15 +227,51 @@ LIVE_SCRIPT = """
       return '<div class="traffic-box">Tracked here because SFO airspace holds drive PAE delays.</div>';
     }
     if (!traffic) return "";
-    const chips = (traffic.sample || [])
+    const bucket = traffic[trafficFilter] || traffic;
+    const label = trafficFilter === "commercial" ? "commercial airborne" : "airborne";
+
+    if (bucket.airborne === 0) {
+      const emptyMsg = trafficFilter === "commercial"
+        ? `No commercial flights airborne (${bucket.total} total within 15 nm)`
+        : `No aircraft airborne (${bucket.total} within 15 nm)`;
+      return `<div class="traffic-box"><div>${emptyMsg}</div></div>`;
+    }
+
+    const chips = (bucket.sample || [])
       .map((a) => `<span class="flight-chip">${esc(a.callsign)} · ${esc(a.type)} · ${Number(a.alt).toLocaleString()} ft</span>`)
       .join("");
     return `
       <div class="traffic-box">
-        <div><strong>${traffic.airborne}</strong> airborne (${traffic.total} within 15 nm)</div>
+        <div><strong>${bucket.airborne}</strong> ${label} (${bucket.total} within 15 nm)</div>
         ${chips ? `<div class="flights-list">${chips}</div>` : ""}
       </div>
     `;
+  }
+
+  function renderLive(data) {
+    const grid = document.getElementById("live-grid");
+    grid.innerHTML = AIRPORTS.map(({ code, name }) => {
+      const wx = data.weather?.[code];
+      const faa = data.faa?.[code] || "No FAA delays reported";
+      const faaCls = faa === "No FAA delays reported" ? "faa-line" : "faa-line faa-alert";
+      const cat = wx?.fltCat || "—";
+      const temp = wx?.tempF != null ? `${wx.tempF}°F` : "—";
+      const wxText = wx
+        ? `${temp} · Wind ${esc(wx.wind)} · Vis ${esc(wx.visib)}`
+        : "Weather unavailable";
+
+      return `
+        <div class="live-card">
+          <div class="live-card-top">
+            <div><span class="airport-code">${code}</span><span class="airport-name">${name}</span></div>
+            <span class="cat-pill ${catClass(cat)}">${esc(cat)}</span>
+          </div>
+          <div class="wx-line" title="${esc(wx?.rawOb || "")}">${wxText}</div>
+          <div class="${faaCls}">FAA: ${esc(faa)}</div>
+          ${renderTraffic(code, data.traffic?.[code])}
+        </div>
+      `;
+    }).join("");
   }
 
   async function loadLive() {
@@ -218,38 +288,28 @@ LIVE_SCRIPT = """
     try {
       const res = await fetch("/.netlify/functions/live");
       if (!res.ok) throw new Error("Feed error " + res.status);
-      const data = await res.json();
+      lastLiveData = await res.json();
+      renderLive(lastLiveData);
 
-      grid.innerHTML = AIRPORTS.map(({ code, name }) => {
-        const wx = data.weather?.[code];
-        const faa = data.faa?.[code] || "No FAA delays reported";
-        const faaCls = faa === "No FAA delays reported" ? "faa-line" : "faa-line faa-alert";
-        const cat = wx?.fltCat || "—";
-        const temp = wx?.tempF != null ? `${wx.tempF}°F` : "—";
-        const wxText = wx
-          ? `${temp} · Wind ${esc(wx.wind)} · Vis ${esc(wx.visib)}`
-          : "Weather unavailable";
-
-        return `
-          <div class="live-card">
-            <div class="live-card-top">
-              <div><span class="airport-code">${code}</span><span class="airport-name">${name}</span></div>
-              <span class="cat-pill ${catClass(cat)}">${esc(cat)}</span>
-            </div>
-            <div class="wx-line" title="${esc(wx?.rawOb || "")}">${wxText}</div>
-            <div class="${faaCls}">FAA: ${esc(faa)}</div>
-            ${renderTraffic(code, data.traffic?.[code])}
-          </div>
-        `;
-      }).join("");
-
-      const t = new Date(data.updatedAt);
+      const t = new Date(lastLiveData.updatedAt);
       updated.textContent = "Updated " + t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     } catch (err) {
       grid.innerHTML = '<p class="live-note">Live conditions temporarily unavailable. Historical reliability charts below are unaffected.</p>';
       updated.textContent = "Offline";
     }
   }
+
+  document.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      trafficFilter = btn.dataset.filter;
+      document.querySelectorAll(".seg-btn").forEach((b) => {
+        const active = b === btn;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-pressed", String(active));
+      });
+      if (lastLiveData) renderLive(lastLiveData);
+    });
+  });
 
   document.getElementById("live-refresh").addEventListener("click", loadLive);
   loadLive();
@@ -319,6 +379,10 @@ def build():
       <div class="live-header">
         <div class="live-title"><span class="dot"></span>Live Airport Conditions</div>
         <div class="live-meta">
+          <div class="seg" role="radiogroup" aria-label="Aircraft filter">
+            <button class="seg-btn active" type="button" data-filter="all" aria-pressed="true">All aircraft</button>
+            <button class="seg-btn" type="button" data-filter="commercial" aria-pressed="false">Commercial</button>
+          </div>
           <span id="live-updated">Loading...</span>
           <button id="live-refresh" class="refresh-btn" type="button">Refresh</button>
         </div>
